@@ -27,8 +27,8 @@
             <input type="text" id="caseTitle" class="w-full p-3 mb-3 bg-black border border-zinc-800 rounded-lg text-white" placeholder="Nombre del caso...">
             
             <div class="relative">
-                <textarea id="notes" class="w-full p-3 bg-black border border-zinc-800 rounded-lg h-24 text-white pr-10" placeholder="Descripción de lo ocurrido o usa el micrófono..."></textarea>
-                <button type="button" onclick="toggleSpeechRecognition()" id="micBtn" class="absolute right-3 top-3 text-zinc-400 hover:text-red-500 transition cursor-pointer text-lg" title="Dictar por voz">
+                <textarea id="notes" class="w-full p-3 bg-black border border-zinc-800 rounded-lg h-24 text-white pr-12" placeholder="Descripción de lo ocurrido o usa el micrófono..."></textarea>
+                <button type="button" onclick="toggleSpeechRecognition()" id="micBtn" class="absolute right-2 top-2 w-9 h-9 flex items-center justify-center rounded-lg text-zinc-400 hover:text-red-500 transition cursor-pointer text-lg" title="Dictar por voz">
                     🎙️
                 </button>
             </div>
@@ -48,7 +48,7 @@
         <div id="evidenceList" class="space-y-4"></div>
         
         <div class="text-center pt-8 border-t border-zinc-900">
-            <p class="text-[9px] text-zinc-700 font-mono">IDB v3.0 | Powered by MikePC4000</p>
+            <p class="text-[9px] text-zinc-700 font-mono">IDB v3.1 | Powered by MikePC4000</p>
         </div>
     </main>
 
@@ -78,7 +78,7 @@
             });
         }
 
-        // Control de Reconocimiento de Voz (Transcripción)
+        // Control de Reconocimiento de Voz con indicador visual rojo
         function toggleSpeechRecognition() {
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!SpeechRecognition) {
@@ -97,7 +97,7 @@
 
                 recognition.onstart = () => {
                     isRecording = true;
-                    micBtn.classList.add('text-red-500', 'animate-pulse');
+                    micBtn.classList.add('bg-red-950/80', 'text-red-500', 'border', 'border-red-600', 'animate-pulse', 'shadow-[0_0_10px_rgba(220,38,38,0.5)]');
                     micBtn.title = "Escuchando... Haz clic para detener";
                 };
 
@@ -136,7 +136,7 @@
             isRecording = false;
             const micBtn = document.getElementById('micBtn');
             if (micBtn) {
-                micBtn.classList.remove('text-red-500', 'animate-pulse');
+                micBtn.classList.remove('bg-red-950/80', 'text-red-500', 'border', 'border-red-600', 'animate-pulse', 'shadow-[0_0_10px_rgba(220,38,38,0.5)]');
                 micBtn.title = "Dictar por voz";
             }
         }
