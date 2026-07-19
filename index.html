@@ -17,57 +17,46 @@
 </head>
 <body class="p-4 bg-[#050505]">
 
+    <!-- Modal para ver archivos en grande -->
+    <div id="modal" class="fixed inset-0 bg-black/95 z-50 hidden flex flex-col items-center justify-center p-4">
+        <button onclick="closeModal()" class="absolute top-5 right-5 text-white text-3xl font-bold bg-zinc-800 rounded-full w-10 h-10 flex items-center justify-center hover:bg-zinc-700">✕</button>
+        <div id="modalContent" class="max-w-full max-h-[80vh] flex items-center justify-center"></div>
+    </div>
+
     <main class="max-w-md mx-auto space-y-6">
         <div class="glass rounded-3xl p-6 shadow-2xl border-t border-red-900">
-            <div class="flex justify-center mb-4">
-                <div class="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center border-2 border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
-                    <span class="text-3xl">👁️</span>
-                </div>
-            </div>
-
-            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">
-                VIGILANTE <span class="text-white">PRO</span>
-            </h1>
-            <p class="text-[10px] text-zinc-500 font-mono uppercase italic mb-6 tracking-widest text-center">
-                Documentando la verdad, restaurando tu paz.
-            </p>
+            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">VIGILANTE <span class="text-white">PRO</span></h1>
+            <p class="text-[9px] text-center text-zinc-600 font-mono mb-4">Powered by MikePC4000</p>
             
             <div class="space-y-4">
                 <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600">
-                
                 <div class="relative">
-                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600" placeholder="¿Qué ocurrió? ..."></textarea>
-                    <div class="absolute top-2 right-2 flex gap-2">
-                        <button onclick="document.getElementById('notes').value=''" class="p-2 bg-zinc-800 rounded-full hover:bg-zinc-600 transition-all text-xs">🗑️</button>
-                        <button id="micBtn" onclick="toggleDictation()" class="p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all text-sm">🎙️</button>
+                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-20 text-white outline-none focus:border-red-600" placeholder="¿Qué ocurrió? ..."></textarea>
+                    <button id="micBtn" onclick="toggleDictation()" class="absolute top-2 right-2 p-2 bg-zinc-800 rounded-full text-xs">🎙️</button>
+                </div>
+                
+                <div id="dropZone" class="border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer hover:border-red-600 transition-colors">
+                    <input type="file" id="mediaInput" accept="audio/*,image/*,video/*" multiple class="hidden">
+                    <div onclick="document.getElementById('mediaInput').click()">
+                        <span class="text-2xl">📁</span>
+                        <p class="text-[10px] text-zinc-400 font-mono uppercase mt-2">Arrastra o clic: Añadir archivos</p>
                     </div>
                 </div>
 
-                <!-- Zona de carga mejorada -->
-                <div id="dropZone" class="border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer hover:border-red-600 transition-all">
-                    <input type="file" id="mediaInput" accept="audio/*,image/*,video/*" class="hidden">
-                    <div onclick="document.getElementById('mediaInput').click()" class="pointer-events-none">
-                        <span class="text-xl">➕</span>
-                        <p class="text-[9px] text-zinc-400 font-mono uppercase mt-2">Añadir archivo a la cola</p>
-                    </div>
-                </div>
-
-                <!-- Lista de espera -->
-                <div id="queueList" class="grid grid-cols-2 gap-2 text-[10px]"></div>
+                <div id="queueList" class="grid grid-cols-3 gap-2 mt-2"></div>
                 
                 <button onclick="saveEvidence()" class="w-full btn-panic text-white py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all">
                     GUARDAR EVIDENCIA
                 </button>
             </div>
-            
-            <div class="mt-8 pt-4 border-t border-zinc-800 text-center text-[9px] text-zinc-600 font-mono">
-                Powered by MikePC4000
-            </div>
         </div>
 
         <div class="glass rounded-3xl p-6">
-            <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Registros Guardados</h2>
-            <div id="evidenceList" class="space-y-3 max-h-80 overflow-y-auto"></div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Registros</h2>
+                <button onclick="deleteSelected()" class="text-[9px] text-red-500 underline">Borrar Seleccionados</button>
+            </div>
+            <div id="evidenceList" class="space-y-4"></div>
         </div>
     </main>
 
@@ -75,64 +64,88 @@
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
         let filesQueue = [];
 
-        // Dictado
+        const dropZone = document.getElementById('dropZone');
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-red-600'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-red-600'));
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('border-red-600'); addFiles(e.dataTransfer.files); });
+        document.getElementById('mediaInput').addEventListener('change', (e) => addFiles(e.target.files));
+
         function toggleDictation() {
-            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.lang = 'es-ES';
-            recognition.onresult = (e) => document.getElementById('notes').value = Array.from(e.results).map(r => r[0].transcript).join('');
-            recognition.start();
+            const rec = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            rec.lang = 'es-ES';
+            rec.onstart = () => document.getElementById('micBtn').classList.add('recording-pulse');
+            rec.onresult = (e) => document.getElementById('notes').value = e.results[0][0].transcript;
+            rec.onend = () => document.getElementById('micBtn').classList.remove('recording-pulse');
+            rec.start();
         }
 
-        // Manejo de archivos en cola
-        document.getElementById('mediaInput').addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                filesQueue.push(e.target.files[0]);
-                renderQueue();
-            }
-        });
+        function addFiles(files) {
+            for(let f of files) filesQueue.push(f);
+            renderQueue();
+        }
 
         function renderQueue() {
             const list = document.getElementById('queueList');
             list.innerHTML = filesQueue.map((f, i) => `
-                <div class="bg-zinc-800 p-2 rounded flex justify-between items-center">
-                    <span class="truncate">${f.name.substring(0,10)}</span>
-                    <button onclick="filesQueue.splice(${i},1); renderQueue()" class="text-red-500">✕</button>
+                <div class="relative bg-zinc-800 rounded p-1 text-[10px] text-center">
+                    <div class="h-12 flex items-center justify-center text-xl cursor-pointer">
+                        ${f.type.startsWith('image/') ? '🖼️' : f.type.startsWith('video/') ? '🎬' : '🎵'}
+                    </div>
+                    <button onclick="filesQueue.splice(${i},1); renderQueue()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-[8px] text-white">✕</button>
                 </div>
             `).join('');
         }
 
         async function saveEvidence() {
-            const mediaList = [];
+            const mediaData = [];
             for (let f of filesQueue) {
                 const data = await new Promise(res => {
                     const reader = new FileReader();
                     reader.onload = e => res(e.target.result);
                     reader.readAsDataURL(f);
                 });
-                mediaList.push({ data, type: f.type, name: f.name });
+                mediaData.push({ data, type: f.type });
             }
-
-            evidences.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), phone: document.getElementById('phoneInput').value, notes: document.getElementById('notes').value, mediaList });
+            evidences.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), phone: document.getElementById('phoneInput').value, notes: document.getElementById('notes').value, mediaData, selected: false });
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
-            
-            // Reset
             filesQueue = [];
-            document.getElementById('queueList').innerHTML = '';
-            document.getElementById('notes').value = '';
+            renderQueue();
             renderList();
         }
 
         function renderList() {
             document.getElementById('evidenceList').innerHTML = evidences.map(e => `
-                <div class="p-3 bg-zinc-900 border-l-4 border-red-600 rounded-r-lg">
-                    <span class="text-[9px] text-zinc-500">${e.timestamp}</span>
-                    <p class="text-sm mt-1">${e.notes}</p>
-                    <div class="grid grid-cols-2 gap-2 mt-2">
-                        ${e.mediaList.map(m => m.type.startsWith('image/') ? `<img src="${m.data}" class="h-16 w-full object-cover rounded">` : `<div class="bg-zinc-800 p-2 text-[8px] truncate">${m.name}</div>`).join('')}
+                <div class="p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-[9px] text-zinc-500">${e.timestamp}</span>
+                        <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="accent-red-600">
+                    </div>
+                    <p class="text-sm mb-2">${e.notes}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        ${e.mediaData.map(m => `
+                            <div class="bg-zinc-800 p-1 rounded text-center cursor-pointer">
+                                ${m.type.startsWith('audio/') 
+                                    ? `<audio controls class="w-full h-8"><source src="${m.data}"></audio>` 
+                                    : `<div onclick="openModal('${m.data}', '${m.type}')" class="text-xs py-2 bg-zinc-700 rounded">${m.type.startsWith('image/') ? '📷 Imagen' : '🎥 Video'}</div>`}
+                            </div>
+                        `).join('')}
                     </div>
                 </div>
             `).join('');
         }
+
+        function toggleSelection(id) { evidences = evidences.map(e => e.id === id ? {...e, selected: !e.selected} : e); renderList(); }
+        function deleteSelected() { evidences = evidences.filter(e => !e.selected); localStorage.setItem('evidences_vigilante', JSON.stringify(evidences)); renderList(); }
+
+        function openModal(data, type) {
+            const modal = document.getElementById('modal');
+            const content = document.getElementById('modalContent');
+            if (type.startsWith('image/')) content.innerHTML = `<img src="${data}" class="max-w-full max-h-[80vh] rounded-lg">`;
+            else if (type.startsWith('video/')) content.innerHTML = `<video controls src="${data}" class="max-w-full max-h-[80vh] rounded-lg"></video>`;
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() { document.getElementById('modal').classList.add('hidden'); }
         renderList();
     </script>
 </body>
