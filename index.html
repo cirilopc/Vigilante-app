@@ -17,6 +17,11 @@
     <main class="max-w-xl mx-auto space-y-6 pb-20">
         <!-- Panel de Creación -->
         <div class="glass rounded-3xl p-6 shadow-2xl border-t border-red-950">
+            <div class="flex justify-center mb-4">
+                <div class="w-16 h-16 bg-red-950/30 rounded-full flex items-center justify-center border-2 border-red-700 shadow-[0_0_20px_rgba(153,27,27,0.5)]">
+                    <span class="text-3xl">👁️</span>
+                </div>
+            </div>
             <h1 class="text-2xl font-black uppercase text-red-500 text-center">VIGILANTE <span class="text-white">PRO</span></h1>
             <p class="text-[10px] text-zinc-500 text-center mb-6 uppercase tracking-widest">Documentando la verdad, restaurando tu paz.</p>
             
@@ -26,7 +31,7 @@
             <!-- Zona de Arrastre -->
             <div id="dropZone" class="mt-4 border-2 border-dashed border-zinc-800 p-6 text-center cursor-pointer hover:border-red-600 rounded-lg transition-all">
                 <input type="file" id="mediaInput" multiple class="hidden">
-                <p class="text-xs text-zinc-400">Arrastra archivos o clic para subir</p>
+                <p class="text-xs text-zinc-400">Arrastra archivos o haz clic para subir</p>
                 <div id="progressBar" class="w-full h-1 bg-zinc-800 mt-4 rounded-full hidden overflow-hidden">
                     <div id="progressFill" class="h-full bg-red-600 w-0 transition-all"></div>
                 </div>
@@ -59,7 +64,11 @@
         async function openDB() {
             return new Promise((resolve) => {
                 const request = indexedDB.open(DB_NAME, 1);
-                request.onupgradeneeded = (e) => e.target.result.createObjectStore('cases', { keyPath: 'id' });
+                request.onupgradeneeded = (e) => {
+                    if (!e.target.result.objectStoreNames.contains('cases')) {
+                        e.target.result.createObjectStore('cases', { keyPath: 'id' });
+                    }
+                };
                 request.onsuccess = (e) => resolve(e.target.result);
             });
         }
@@ -104,23 +113,27 @@
             const notes = document.getElementById('notes').value;
             if(!title) return;
             const db = await openDB();
-            db.transaction('cases', 'readwrite').objectStore('cases').add({ 
+            const tx = db.transaction('cases', 'readwrite');
+            tx.objectStore('cases').add({ 
                 id: Date.now(), 
                 timestamp: new Date().toLocaleString(), 
                 title, 
                 notes, 
                 media: pendingFiles 
             });
-            pendingFiles = []; 
-            document.getElementById('caseTitle').value = ''; 
-            document.getElementById('notes').value = ''; 
-            document.getElementById('previewList').innerHTML = '';
-            loadRecords();
+            tx.oncomplete = () => {
+                pendingFiles = []; 
+                document.getElementById('caseTitle').value = ''; 
+                document.getElementById('notes').value = ''; 
+                document.getElementById('previewList').innerHTML = '';
+                loadRecords();
+            };
         }
 
         async function loadRecords() {
             const db = await openDB();
-            const request = db.transaction('cases', 'readonly').objectStore('cases').getAll();
+            const tx = db.transaction('cases', 'readonly');
+            const request = tx.objectStore('cases').getAll();
             request.onsuccess = () => {
                 document.getElementById('evidenceList').innerHTML = request.result.reverse().map(c => `
                     <div class="glass p-5 rounded-2xl border border-zinc-800">
@@ -128,7 +141,7 @@
                         <p class="text-[9px] text-zinc-500">${c.timestamp}</p>
                         <p class="text-sm text-zinc-300 my-2 italic">"${c.notes}"</p>
                         <div class="grid grid-cols-2 gap-2">
-                            ${c.media.map((m, i) => {
+                            ${c.media.map(m => {
                                 const url = URL.createObjectURL(dataURLtoBlob(m.data));
                                 if(m.type.startsWith('image/')) return `<img src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'image')">`;
                                 if(m.type.startsWith('audio/')) return `<audio controls class="w-full h-10"><source src="${url}" type="${m.type}"></audio>`;
@@ -156,9 +169,9 @@
         }
 
         function closeModal() {
-            const media = document.getElementById('modalContent').querySelectorAll('video, audio');
-            media.forEach(m => { m.pause(); m.currentTime = 0; });
-            document.getElementById('mediaModal').classList.add('hidden');
+            const modal = document.getElementById('mediaModal');
+            modal.querySelectorAll('video, audio').forEach(m => { m.pause(); m.currentTime = 0; });
+            modal.classList.add('hidden');
         }
 
         async function deleteCase(id) {
