@@ -36,13 +36,13 @@
             </div>
 
             <div id="previewList" class="mt-4 grid grid-cols-3 gap-2"></div>
-            <button onclick="saveEvidence()" class="w-full mt-4 btn-panic py-3 rounded-lg font-bold uppercase hover:bg-red-700 transition">Guardar Caso</button>
+            <button onclick="saveEvidence()" class="w-full mt-4 btn-panic py-3 rounded-lg font-bold uppercase hover:bg-red-700 transition cursor-pointer">Guardar Caso</button>
         </div>
 
         <div id="evidenceList" class="space-y-4"></div>
         
         <div class="text-center pt-8 border-t border-zinc-900">
-            <p class="text-[9px] text-zinc-700 font-mono">IDB v2.6 | Powered by MikePC4000</p>
+            <p class="text-[9px] text-zinc-700 font-mono">IDB v2.7 | Powered by MikePC4000</p>
         </div>
     </main>
 
@@ -81,16 +81,20 @@
             const fill = document.getElementById('progressFill');
             bar.classList.remove('hidden');
             let count = 0;
+            
             Array.from(files).forEach((f) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    pendingFiles.push({ id: Date.now() + Math.random(), name: f.name, type: f.type, data: e.target.result });
-                    count++;
-                    fill.style.width = (count / files.length) * 100 + '%';
-                    renderPreview();
-                    if(count === files.length) setTimeout(() => bar.classList.add('hidden'), 500);
-                };
-                reader.readAsDataURL(f);
+                const previewUrl = URL.createObjectURL(f);
+                pendingFiles.push({ 
+                    id: Date.now() + Math.random(), 
+                    name: f.name, 
+                    type: f.type, 
+                    fileObj: f, 
+                    previewUrl: previewUrl 
+                });
+                count++;
+                fill.style.width = (count / files.length) * 100 + '%';
+                renderPreview();
+                if(count === files.length) setTimeout(() => bar.classList.add('hidden'), 500);
             });
         }
 
@@ -98,8 +102,8 @@
             const list = document.getElementById('previewList');
             list.innerHTML = pendingFiles.map((f, i) => `
                 <div class="bg-zinc-900 p-2 rounded text-[9px] truncate relative border border-zinc-700">
-                    ${f.type.startsWith('image/') ? `<img src="${f.data}" class="h-10 w-full object-cover">` : f.name}
-                    <button onclick="pendingFiles.splice(${i},1); renderPreview()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-[10px] text-white">×</button>
+                    ${f.type.startsWith('image/') ? `<img src="${f.previewUrl}" class="h-10 w-full object-cover rounded">` : `<div class="h-10 flex items-center justify-center text-zinc-400 font-mono">${f.name.split('.').pop().toUpperCase()}</div>`}
+                    <button onclick="pendingFiles.splice(${i},1); renderPreview()" class="absolute -top-1 -right-1 bg-red-600 rounded-full w-4 h-4 text-[10px] text-white flex items-center justify-center cursor-pointer">×</button>
                 </div>
             `).join('');
         }
@@ -107,6 +111,7 @@
         async function saveEvidence() {
             const title = document.getElementById('caseTitle').value.trim();
             const notes = document.getElementById('notes').value.trim();
+            
             if(!title) {
                 alert("Por favor, ingresa un título para el caso.");
                 return;
@@ -116,7 +121,21 @@
                 const db = await openDB();
                 const tx = db.transaction('cases', 'readwrite');
                 const store = tx.objectStore('cases');
-                const entry = { id: Date.now() + Math.random(), timestamp: new Date().toLocaleString(), title, notes, media: [...pendingFiles] };
+                
+                // Limpiar referencias innecesarias para almacenar objetos Blob nativos limpios
+                const mediaData = pendingFiles.map(f => ({
+                    name: f.name,
+                    type: f.type,
+                    blob: f.fileObj
+                }));
+
+                const entry = { 
+                    id: Date.now() + Math.random(), 
+                    timestamp: new Date().toLocaleString(), 
+                    title, 
+                    notes, 
+                    media: mediaData 
+                };
                 
                 store.add(entry);
                 
@@ -127,9 +146,14 @@
                     document.getElementById('previewList').innerHTML = '';
                     loadRecords();
                 };
-                tx.onerror = (e) => console.error("Error al guardar en transacción:", e.target.error);
+                
+                tx.onerror = (e) => {
+                    console.error("Error al guardar:", e.target.error);
+                    alert("Error al guardar: El archivo multimedia podría ser demasiado grande para la memoria del navegador.");
+                };
             } catch (err) {
-                console.error("Error crítico al guardar:", err);
+                console.error("Error crítico:", err);
+                alert("Error crítico al procesar el caso.");
             }
         }
 
@@ -149,13 +173,13 @@
                             <p class="text-sm text-zinc-300 my-2 italic">"${c.notes}"</p>
                             <div class="grid grid-cols-2 gap-2">
                                 ${c.media.map(m => {
-                                    const url = m.data; 
+                                    const url = URL.createObjectURL(m.blob);
                                     if(m.type.startsWith('image/')) return `<img src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'image')">`;
                                     if(m.type.startsWith('audio/')) return `<audio controls class="w-full h-10"><source src="${url}" type="${m.type}"></audio>`;
                                     return `<video src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'video')"></video>`;
                                 }).join('')}
                             </div>
-                            <button onclick="deleteCase(${c.id})" class="mt-4 text-[10px] bg-red-900 px-3 py-1 rounded w-full hover:bg-red-800 transition">ELIMINAR CASO COMPLETO</button>
+                            <button onclick="deleteCase(${c.id})" class="mt-4 text-[10px] bg-red-900 px-3 py-1 rounded w-full hover:bg-red-800 transition cursor-pointer">ELIMINAR CASO COMPLETO</button>
                         </div>
                     `).join('');
                 };
