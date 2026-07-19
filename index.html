@@ -36,7 +36,15 @@
                 
                 <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600">
                 
-                <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600" placeholder="¿Qué ocurrió? Breve..."></textarea>
+                <div class="relative">
+                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600" placeholder="¿Qué ocurrió? Breve..."></textarea>
+                    <button onclick="startDictation()" class="absolute top-2 right-2 p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all">🎙️</button>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] text-zinc-500 uppercase font-bold">Audio/Archivo:</label>
+                    <input type="file" id="audioInput" accept="audio/*" class="text-[10px] text-zinc-400 file:bg-zinc-800 file:border-0 file:rounded-lg file:px-2 file:py-1 file:text-white">
+                </div>
                 
                 <button onclick="saveEvidence()" class="w-full btn-panic text-white py-5 rounded-2xl font-black uppercase tracking-widest text-lg shadow-xl active:scale-95 transition-all hover:bg-red-800">
                     GUARDAR EVIDENCIA
@@ -62,24 +70,56 @@
 
         window.onload = renderList;
 
-        function saveEvidence() {
+        // Función de Dictado
+        function startDictation() {
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'es-ES';
+            recognition.onresult = (event) => {
+                document.getElementById('notes').value = event.results[0][0].transcript;
+            };
+            recognition.start();
+        }
+
+        async function saveEvidence() {
             const noteInput = document.getElementById('notes');
             const phoneInput = document.getElementById('phoneInput');
-            if(!noteInput.value) return;
+            const audioInput = document.getElementById('audioInput');
             
-            const entry = {
-                id: Date.now(),
-                timestamp: new Date().toLocaleString(),
-                phone: phoneInput.value || "Sin número",
-                notes: noteInput.value,
-                selected: false
-            };
-            
+            let audioData = null;
+            if (audioInput.files.length > 0) {
+                // Convertimos el archivo a base64 para guardarlo (limitado por espacio)
+                const file = audioInput.files[0];
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    audioData = e.target.result;
+                    finalizeSave(noteInput.value, phoneInput.value, audioData);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                finalizeSave(noteInput.value, phoneInput.value, null);
+            }
+        }
+
+        function finalizeSave(notes, phone, audio) {
+            if(!notes) return;
+            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone: phone || "Sin número", notes, audio, selected: false };
             evidences.unshift(entry);
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
-            noteInput.value = '';
-            phoneInput.value = '';
             renderList();
+        }
+
+        function renderList() {
+            const list = document.getElementById('evidenceList');
+            list.innerHTML = evidences.map(e => `
+                <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
+                    <input type="checkbox" onchange="toggleSelection(${e.id})" class="accent-red-600 cursor-pointer">
+                    <div class="flex-grow">
+                        <span class="text-[9px] text-red-500 font-mono">${e.timestamp} | ${e.phone}</span>
+                        <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
+                        ${e.audio ? `<audio controls class="w-full mt-2 h-8"><source src="${e.audio}"></audio>` : ''}
+                    </div>
+                </div>
+            `).join('');
         }
 
         function toggleSelection(id) {
@@ -88,31 +128,9 @@
         }
 
         function deleteSelected() {
-            if(confirm('¿Eliminar los registros seleccionados?')) {
-                evidences = evidences.filter(e => !e.selected);
-                localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
-                renderList();
-            }
-        }
-
-        function renderList() {
-            const list = document.getElementById('evidenceList');
-            if (evidences.length === 0) {
-                list.innerHTML = '<p class="text-center text-zinc-600 text-xs py-4">No hay registros.</p>';
-                return;
-            }
-            list.innerHTML = evidences.map(e => `
-                <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" ${e.selected ? 'checked' : ''} onchange="toggleSelection(${e.id})" class="accent-red-600 cursor-pointer">
-                    <div class="flex-grow">
-                        <div class="flex justify-between items-start">
-                            <span class="text-[9px] text-red-500 font-mono">${e.timestamp}</span>
-                            <span class="text-[9px] font-bold text-zinc-400">${e.phone}</span>
-                        </div>
-                        <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
-                    </div>
-                </div>
-            `).join('');
+            evidences = evidences.filter(e => !e.selected);
+            localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
+            renderList();
         }
     </script>
 </body>
