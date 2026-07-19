@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VIGILANTE PRO | Evidencia Multimedia</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -16,7 +16,7 @@
 
     <main class="max-w-xl mx-auto space-y-6 pb-20">
         <!-- Panel de Creación -->
-        <div class="glass rounded-3xl p-6 border-t border-red-950 shadow-2xl">
+        <div class="glass rounded-3xl p-6 shadow-2xl border-t border-red-950">
             <h1 class="text-2xl font-black uppercase text-red-500 text-center">VIGILANTE <span class="text-white">PRO</span></h1>
             <p class="text-[10px] text-zinc-500 text-center mb-6 uppercase tracking-widest">Documentando la verdad, restaurando tu paz.</p>
             
@@ -32,10 +32,10 @@
             </div>
 
             <div id="previewList" class="mt-4 grid grid-cols-3 gap-2"></div>
-            
             <button onclick="saveEvidence()" class="w-full mt-4 btn-panic py-3 rounded-lg font-bold uppercase hover:bg-red-700 transition">Guardar Caso</button>
         </div>
 
+        <!-- Historial -->
         <div id="evidenceList" class="space-y-4"></div>
         
         <div class="text-center pt-8 border-t border-zinc-900">
@@ -43,15 +43,14 @@
         </div>
     </main>
 
-    <!-- Modal Multimedia -->
+    <!-- Modal -->
     <div id="mediaModal" class="fixed inset-0 bg-black/95 z-50 hidden flex justify-center items-center">
-        <!-- Botón de cierre elegante -->
-        <button onclick="closeModal()" class="absolute top-6 right-6 text-white text-3xl font-bold bg-red-900/50 rounded-full w-12 h-12 hover:bg-red-600 transition z-50 border-2 border-red-500">×</button>
+        <button onclick="closeModal()" class="absolute top-6 right-6 text-white text-3xl font-bold bg-red-900/50 rounded-full w-12 h-12 border-2 border-red-500">×</button>
         <div id="modalContent" class="max-w-4xl w-full p-4 flex justify-center items-center"></div>
     </div>
 
     <script>
-        const DB_NAME = 'VigilantePro_Cases';
+        const DB_NAME = 'VigilantePro_Final';
         let pendingFiles = [];
 
         async function openDB() {
@@ -102,7 +101,13 @@
             const notes = document.getElementById('notes').value;
             if(!title) return;
             const db = await openDB();
-            db.transaction('cases', 'readwrite').objectStore('cases').add({ id: Date.now(), title, notes, media: pendingFiles });
+            db.transaction('cases', 'readwrite').objectStore('cases').add({ 
+                id: Date.now(), 
+                timestamp: new Date().toLocaleString(), 
+                title, 
+                notes, 
+                media: pendingFiles 
+            });
             pendingFiles = []; 
             document.getElementById('caseTitle').value = ''; 
             document.getElementById('notes').value = ''; 
@@ -117,7 +122,10 @@
             request.onsuccess = () => {
                 document.getElementById('evidenceList').innerHTML = request.result.reverse().map(c => `
                     <div class="glass p-5 rounded-2xl border border-zinc-800">
-                        <h3 class="font-bold text-red-500 uppercase">${c.title}</h3>
+                        <div class="flex justify-between">
+                            <h3 class="font-bold text-red-500 uppercase">${c.title}</h3>
+                            <span class="text-[9px] text-zinc-500 font-mono">${c.timestamp}</span>
+                        </div>
                         <p class="text-sm text-zinc-300 mb-2 italic">"${c.notes}"</p>
                         <div class="grid grid-cols-3 gap-2">
                             ${c.media.map(m => {
@@ -148,7 +156,6 @@
         }
 
         function closeModal() {
-            // Detener todos los medios activos
             const media = document.getElementById('modalContent').querySelectorAll('video, audio');
             media.forEach(m => { m.pause(); m.currentTime = 0; });
             document.getElementById('mediaModal').classList.add('hidden');
