@@ -41,9 +41,12 @@
                     <button onclick="startDictation()" class="absolute top-2 right-2 p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all">🎙️</button>
                 </div>
 
-                <div class="flex items-center gap-2">
-                    <label class="text-[10px] text-zinc-500 uppercase font-bold">Audio/Archivo:</label>
-                    <input type="file" id="audioInput" accept="audio/*" class="text-[10px] text-zinc-400 file:bg-zinc-800 file:border-0 file:rounded-lg file:px-2 file:py-1 file:text-white">
+                <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center hover:border-red-600 hover:bg-zinc-900 transition-all cursor-pointer">
+                    <input type="file" id="audioInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Arrastra o selecciona un archivo">
+                    <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                        <span class="text-2xl">📁</span>
+                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Haz clic o arrastra un audio aquí</span>
+                    </div>
                 </div>
                 
                 <button onclick="saveEvidence()" class="w-full btn-panic text-white py-5 rounded-2xl font-black uppercase tracking-widest text-lg shadow-xl active:scale-95 transition-all hover:bg-red-800">
@@ -68,7 +71,67 @@
     <script>
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
 
-        window.onload = renderList;
+        window.onload = () => {
+            renderList();
+            setupDropZone();
+        };
+
+        function setupDropZone() {
+            const dropZone = document.getElementById('dropZone');
+            const audioInput = document.getElementById('audioInput');
+            const fileLabel = document.getElementById('fileLabel');
+
+            // Prevenir comportamientos por defecto del navegador
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            // Efectos visuales al arrastrar
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('border-red-600', 'bg-zinc-800');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('border-red-600', 'bg-zinc-800');
+                }, false);
+            });
+
+            // Manejar el soltado del archivo
+            dropZone.addEventListener('drop', (e) => {
+                let dt = e.dataTransfer;
+                let files = dt.files;
+                
+                if (files.length > 0 && files[0].type.startsWith('audio/')) {
+                    audioInput.files = files; // Asignar el archivo arrastrado al input
+                    updateFileLabel();
+                } else {
+                    fileLabel.textContent = "Error: Solo archivos de audio";
+                    fileLabel.classList.add('text-red-500');
+                    setTimeout(updateFileLabel, 2000);
+                }
+            }, false);
+
+            // Manejar selección normal por clic
+            audioInput.addEventListener('change', updateFileLabel);
+
+            function updateFileLabel() {
+                if (audioInput.files.length > 0) {
+                    fileLabel.textContent = "LISTO: " + audioInput.files[0].name;
+                    fileLabel.className = "text-[10px] text-green-500 font-mono uppercase font-bold tracking-widest";
+                } else {
+                    fileLabel.textContent = "Haz clic o arrastra un audio aquí";
+                    fileLabel.className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
+                }
+            }
+        }
 
         // Función de Dictado
         function startDictation() {
@@ -105,6 +168,17 @@
             const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone: phone || "Sin número", notes, audio, selected: false };
             evidences.unshift(entry);
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
+            
+            // Limpiar todo después de guardar
+            document.getElementById('notes').value = '';
+            document.getElementById('phoneInput').value = '';
+            document.getElementById('audioInput').value = '';
+            const fileLabel = document.getElementById('fileLabel');
+            if(fileLabel) {
+                fileLabel.textContent = "Haz clic o arrastra un audio aquí";
+                fileLabel.className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
+            }
+
             renderList();
         }
 
