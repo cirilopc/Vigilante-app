@@ -55,7 +55,7 @@
         const DB_NAME = 'VigilantePro_Final';
         let pendingFiles = [];
 
-        async function openDB() {
+        function openDB() {
             return new Promise((resolve, reject) => {
                 const request = indexedDB.open(DB_NAME, 1);
                 request.onupgradeneeded = (e) => {
@@ -105,23 +105,26 @@
         async function saveEvidence() {
             const title = document.getElementById('caseTitle').value;
             const notes = document.getElementById('notes').value;
-            if(!title) return;
-            const db = await openDB();
-            const tx = db.transaction('cases', 'readwrite');
-            tx.objectStore('cases').add({ 
-                id: Date.now(), 
-                timestamp: new Date().toLocaleString(), 
-                title, 
-                notes, 
-                media: pendingFiles 
-            });
-            tx.oncomplete = () => {
-                pendingFiles = []; 
-                document.getElementById('caseTitle').value = ''; 
-                document.getElementById('notes').value = ''; 
-                document.getElementById('previewList').innerHTML = '';
-                loadRecords();
-            };
+            if(!title) return alert("Por favor, ingresa un título para el caso.");
+            
+            try {
+                const db = await openDB();
+                const tx = db.transaction('cases', 'readwrite');
+                const store = tx.objectStore('cases');
+                const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), title, notes, media: pendingFiles };
+                
+                const request = store.add(entry);
+                request.onsuccess = () => {
+                    pendingFiles = []; 
+                    document.getElementById('caseTitle').value = ''; 
+                    document.getElementById('notes').value = ''; 
+                    document.getElementById('previewList').innerHTML = '';
+                    loadRecords();
+                };
+                request.onerror = (e) => console.error("Error al guardar:", e);
+            } catch (err) {
+                console.error("Error en DB:", err);
+            }
         }
 
         async function loadRecords() {
@@ -143,7 +146,7 @@
                                 return `<video src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'video')"></video>`;
                             }).join('')}
                         </div>
-                        <button onclick="deleteCase(${c.id})" class="mt-4 text-[10px] bg-red-900 px-3 py-1 rounded w-full">ELIMINAR CASO COMPLETO</button>
+                        <button onclick="deleteCase(${c.id})" class="mt-4 text-[10px] bg-red-900 px-3 py-1 rounded w-full hover:bg-red-800">ELIMINAR CASO COMPLETO</button>
                     </div>
                 `).join('');
             };
