@@ -4,22 +4,19 @@
     <meta charset="UTF-8">
     <title>Vigilante Pro</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; max-width: 800px; margin: auto; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 20px; max-width: 800px; margin: auto; }
         header { text-align: center; margin-bottom: 30px; }
-        .logo { font-size: 40px; }
-        .eslogan { color: #888; font-style: italic; }
-        .drop-zone { border: 2px dashed #007bff; padding: 40px; text-align: center; cursor: pointer; border-radius: 8px; background: #1e1e1e; transition: 0.3s; }
-        .drop-zone:hover { background: #2a2a2a; }
-        button { background: #007bff; color: white; border: none; padding: 12px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; margin-top: 15px; width: 100%; font-weight: bold; }
-        button:hover { background: #0056b3; }
-        .caso-item { background: #1e1e1e; padding: 15px; margin-top: 15px; border-radius: 8px; border-left: 5px solid #007bff; }
-        
-        /* Modal para ver archivos multimedia */
-        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); align-items: center; justify-content: center; z-index: 1000; flex-direction: column; }
-        .close-btn { position: absolute; top: 20px; right: 30px; color: red; font-size: 50px; cursor: pointer; font-weight: bold; background: #fff; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-        #modal-content img, #modal-content video { max-width: 90vw; max-height: 80vh; border-radius: 5px; }
-
-        footer { margin-top: 50px; text-align: center; color: #555; font-size: 12px; }
+        .logo { font-size: 50px; }
+        .eslogan { color: #aaa; font-style: italic; margin-bottom: 10px; }
+        .drop-zone { border: 2px dashed #ff0000; padding: 40px; text-align: center; cursor: pointer; border-radius: 10px; background: #1a1a1a; transition: 0.3s; }
+        .drop-zone:hover { background: #250000; border-color: #ff4444; }
+        button { background: #ff0000; color: white; border: none; padding: 12px 25px; font-size: 16px; cursor: pointer; border-radius: 5px; margin-top: 15px; width: 100%; font-weight: bold; }
+        button:hover { background: #cc0000; }
+        .caso-item { background: #1a1a1a; padding: 15px; margin-top: 15px; border-radius: 8px; border-left: 5px solid #ff0000; }
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.98); align-items: center; justify-content: center; z-index: 1000; flex-direction: column; }
+        .close-btn { position: absolute; top: 20px; right: 30px; color: black; font-size: 40px; cursor: pointer; background: #fff; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; z-index: 1001; }
+        #modal-content img, #modal-content video, #modal-content audio { max-width: 90vw; max-height: 80vh; border-radius: 5px; }
+        footer { margin-top: 50px; text-align: center; color: #555; font-size: 12px; border-top: 1px solid #333; padding-top: 20px; }
     </style>
 </head>
 <body>
@@ -30,17 +27,13 @@
         <div class="eslogan">Documentando la verdad...</div>
     </header>
 
-    <div id="drop-zone" class="drop-zone">Arrastra fotos o vídeos aquí (o haz clic)</div>
-    <div id="status" style="margin: 10px 0; color: #00ffcc; text-align: center; font-weight: bold;"></div>
-    
-    <button id="saveBtn">Guardar Caso en Base de Datos</button>
+    <div id="drop-zone" class="drop-zone">Arrastra aquí fotos, vídeos o audios</div>
+    <div id="status" style="margin: 15px 0; color: #ff0000; text-align: center; font-weight: bold;"></div>
+    <button id="saveBtn">Guardar Caso</button>
 
-    <hr style="margin: 40px 0; border-color: #333;">
-
-    <h2>Historial de Casos</h2>
+    <h2 style="margin-top: 40px;">Historial de Casos</h2>
     <div id="lista-casos"></div>
 
-    <!-- Modal multimedia con cierre de audio estricto -->
     <div id="modal">
         <div class="close-btn">&times;</div>
         <div id="modal-content"></div>
@@ -54,20 +47,13 @@
         let db;
         let pendingFiles = [];
 
-        // Inicialización de IndexedDB
         const request = indexedDB.open("VigilanteProDB", 2);
         request.onupgradeneeded = (e) => {
             const database = e.target.result;
-            if (!database.objectStoreNames.contains("casos")) {
-                database.createObjectStore("casos", { keyPath: "id", autoIncrement: true });
-            }
+            if (!database.objectStoreNames.contains("casos")) database.createObjectStore("casos", { keyPath: "id", autoIncrement: true });
         };
-        request.onsuccess = (e) => { 
-            db = e.target.result; 
-            mostrarCasos(); 
-        };
+        request.onsuccess = (e) => { db = e.target.result; mostrarCasos(); };
 
-        // Gestión de archivos arrastrados
         const dropZone = document.getElementById('drop-zone');
         dropZone.ondragover = (e) => e.preventDefault();
         dropZone.ondrop = (e) => {
@@ -77,84 +63,49 @@
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     pendingFiles.push({ name: file.name, data: event.target.result, type: file.type });
-                    document.getElementById('status').innerText = `Archivos listos para guardar: ${pendingFiles.length}`;
+                    document.getElementById('status').innerText = `Archivos listos: ${pendingFiles.length}`;
                 };
                 reader.readAsDataURL(file);
             }
         };
 
-        // Guardar caso
         document.getElementById('saveBtn').onclick = () => {
-            if (!db) return alert("La base de datos aún se está cargando, espera un segundo.");
-            if (pendingFiles.length === 0) return alert("Por favor, añade al menos un archivo multimedia.");
-
+            if (!db || pendingFiles.length === 0) return alert("Añade archivos antes de guardar.");
             const tx = db.transaction("casos", "readwrite");
-            const store = tx.objectStore("casos");
-            const nuevoCaso = {
-                fecha: new Date().toLocaleString(),
-                files: pendingFiles
-            };
-
-            const req = store.add(nuevoCaso);
-            req.onsuccess = () => {
-                alert("¡Caso guardado correctamente!");
-                pendingFiles = [];
-                document.getElementById('status').innerText = "";
-                mostrarCasos();
-            };
-            req.onerror = (e) => alert("Error al guardar en el sistema: " + e.target.error);
+            tx.objectStore("casos").add({ fecha: new Date().toLocaleString(), files: pendingFiles });
+            tx.oncomplete = () => { alert("¡Caso guardado!"); pendingFiles = []; document.getElementById('status').innerText = ""; mostrarCasos(); };
         };
 
-        // Mostrar casos en pantalla
         function mostrarCasos() {
             const lista = document.getElementById('lista-casos');
             lista.innerHTML = "";
-            const tx = db.transaction("casos", "readonly");
-            const store = tx.objectStore("casos");
-
-            store.openCursor().onsuccess = (e) => {
+            db.transaction("casos", "readonly").objectStore("casos").openCursor(null, 'prev').onsuccess = (e) => {
                 const cursor = e.target.result;
                 if (cursor) {
-                    const caso = cursor.value;
                     const div = document.createElement('div');
                     div.className = 'caso-item';
-                    
-                    let htmlContenido = `<strong>Fecha: ${caso.fecha}</strong><br><div style="margin-top: 8px;">`;
-                    caso.files.forEach((file, index) => {
-                        htmlContenido += `<button style="width: auto; padding: 5px 10px; font-size: 12px; margin-right: 5px;" onclick='verArchivo(${JSON.stringify(file.data)}, "${file.type}")'>Ver ${file.name}</button>`;
+                    let html = `<strong>Fecha: ${cursor.value.fecha}</strong><br>`;
+                    cursor.value.files.forEach(f => {
+                        html += `<button style="padding:5px; margin:5px; font-size:12px; width:auto;" onclick='verArchivo(${JSON.stringify(f.data)}, "${f.type}")'>${f.name}</button>`;
                     });
-                    htmlContenido += `</div>`;
-
-                    div.innerHTML = htmlContenido;
+                    div.innerHTML = html;
                     lista.appendChild(div);
                     cursor.continue();
                 }
             };
         }
 
-        // Función para abrir el visor multimedia
-        window.verArchivo = function(data, type) {
-            const modal = document.getElementById('modal');
-            const content = document.getElementById('modal-content');
-            content.innerHTML = "";
-
-            if (type.startsWith('image/')) {
-                content.innerHTML = `<img src="${data}" alt="Evidencia">`;
-            } else if (type.startsWith('video/')) {
-                content.innerHTML = `<video src="${data}" controls autoplay></video>`;
-            } else if (type.startsWith('audio/')) {
-                content.innerHTML = `<audio src="${data}" controls autoplay></audio>`;
-            }
-            modal.style.display = 'flex';
+        window.verArchivo = (data, type) => {
+            const c = document.getElementById('modal-content');
+            c.innerHTML = type.startsWith('image/') ? `<img src="${data}">` : 
+                          type.startsWith('video/') ? `<video src="${data}" controls autoplay></video>` :
+                          `<audio src="${data}" controls autoplay></audio>`;
+            document.getElementById('modal').style.display = 'flex';
         };
 
-        // Cierre estricto del modal (detiene audios y videos de fondo)
         document.querySelector('.close-btn').onclick = () => {
             document.getElementById('modal').style.display = 'none';
-            document.querySelectorAll('video, audio').forEach(media => {
-                media.pause();
-                media.currentTime = 0;
-            });
+            document.querySelectorAll('video, audio').forEach(m => { m.pause(); m.currentTime = 0; });
         };
     </script>
 </body>
