@@ -25,7 +25,13 @@
             <p class="text-[10px] text-zinc-500 text-center mb-6 uppercase tracking-widest">Documentando la verdad, restaurando tu paz.</p>
             
             <input type="text" id="caseTitle" class="w-full p-3 mb-3 bg-black border border-zinc-800 rounded-lg text-white" placeholder="Nombre del caso...">
-            <textarea id="notes" class="w-full p-3 bg-black border border-zinc-800 rounded-lg h-20 text-white" placeholder="Descripción de lo ocurrido..."></textarea>
+            
+            <div class="relative">
+                <textarea id="notes" class="w-full p-3 bg-black border border-zinc-800 rounded-lg h-24 text-white pr-10" placeholder="Descripción de lo ocurrido o usa el micrófono..."></textarea>
+                <button type="button" onclick="toggleSpeechRecognition()" id="micBtn" class="absolute right-3 top-3 text-zinc-400 hover:text-red-500 transition cursor-pointer text-lg" title="Dictar por voz">
+                    🎙️
+                </button>
+            </div>
             
             <div id="dropZone" class="mt-4 border-2 border-dashed border-zinc-800 p-6 text-center cursor-pointer hover:border-red-600 rounded-lg transition-all">
                 <input type="file" id="mediaInput" multiple class="hidden">
@@ -42,7 +48,7 @@
         <div id="evidenceList" class="space-y-4"></div>
         
         <div class="text-center pt-8 border-t border-zinc-900">
-            <p class="text-[9px] text-zinc-700 font-mono">IDB v2.9 | Powered by MikePC4000</p>
+            <p class="text-[9px] text-zinc-700 font-mono">IDB v3.0 | Powered by MikePC4000</p>
         </div>
     </main>
 
@@ -53,8 +59,10 @@
 
     <script>
         const DB_NAME = 'VigilantePro_Final';
-        const DB_VERSION = 2; // Versión actualizada para forzar la creación del almacén
+        const DB_VERSION = 2;
         let pendingFiles = [];
+        let recognition = null;
+        let isRecording = false;
 
         function openDB() {
             return new Promise((resolve, reject) => {
@@ -68,6 +76,69 @@
                 request.onsuccess = (e) => resolve(e.target.result);
                 request.onerror = (e) => reject(e.target.error);
             });
+        }
+
+        // Control de Reconocimiento de Voz (Transcripción)
+        function toggleSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("Tu navegador no soporta la función de dictado por voz. Usa Google Chrome o Edge.");
+                return;
+            }
+
+            const micBtn = document.getElementById('micBtn');
+            const notesInput = document.getElementById('notes');
+
+            if (!isRecording) {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'es-ES';
+                recognition.continuous = true;
+                recognition.interimResults = true;
+
+                recognition.onstart = () => {
+                    isRecording = true;
+                    micBtn.classList.add('text-red-500', 'animate-pulse');
+                    micBtn.title = "Escuchando... Haz clic para detener";
+                };
+
+                recognition.onresult = (event) => {
+                    let finalTranscript = '';
+                    for (let i = event.resultIndex; i < event.results.length; ++i) {
+                        if (event.results[i].isFinal) {
+                            finalTranscript += event.results[i][0].transcript;
+                        }
+                    }
+                    if (finalTranscript) {
+                        notesInput.value += (notesInput.value ? ' ' : '') + finalTranscript;
+                    }
+                };
+
+                recognition.onerror = (event) => {
+                    console.error("Error de voz:", event.error);
+                    stopSpeechRecognition();
+                };
+
+                recognition.onend = () => {
+                    stopSpeechRecognition();
+                };
+
+                recognition.start();
+            } else {
+                stopSpeechRecognition();
+            }
+        }
+
+        function stopSpeechRecognition() {
+            if (recognition) {
+                recognition.stop();
+                recognition = null;
+            }
+            isRecording = false;
+            const micBtn = document.getElementById('micBtn');
+            if (micBtn) {
+                micBtn.classList.remove('text-red-500', 'animate-pulse');
+                micBtn.title = "Dictar por voz";
+            }
         }
 
         const dropZone = document.getElementById('dropZone');
