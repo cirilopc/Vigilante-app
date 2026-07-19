@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -10,6 +11,8 @@
         body { background-color: #050505; color: #fff; font-family: 'Inter', sans-serif; }
         .glass { background: rgba(20, 20, 20, 0.95); border: 1px solid #450a0a; backdrop-filter: blur(10px); }
         .btn-panic { background: linear-gradient(135deg, #991b1b, #7f1d1d); }
+        .recording-pulse { animation: pulse 1.5s infinite; border: 2px solid #ef4444 !important; color: #ef4444; }
+        @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); } 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); } }
     </style>
 </head>
 <body class="p-4 bg-[#050505]">
@@ -37,15 +40,18 @@
                 <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600">
                 
                 <div class="relative">
-                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600" placeholder="¿Qué ocurrió? Breve..."></textarea>
-                    <button onclick="startDictation()" class="absolute top-2 right-2 p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all">🎙️</button>
+                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all" placeholder="¿Qué ocurrió? ..."></textarea>
+                    <div class="absolute top-2 right-2 flex gap-2">
+                        <button id="clearBtn" onclick="document.getElementById('notes').value=''" class="p-2 bg-zinc-800 rounded-full hover:bg-zinc-600 transition-all text-xs">🗑️</button>
+                        <button id="micBtn" onclick="toggleDictation()" class="p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all text-sm">🎙️</button>
+                    </div>
                 </div>
 
                 <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center hover:border-red-600 hover:bg-zinc-900 transition-all cursor-pointer">
-                    <input type="file" id="audioInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" title="Arrastra o selecciona un archivo">
+                    <input type="file" id="audioInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                     <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
                         <span class="text-2xl">📁</span>
-                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Haz clic o arrastra un audio aquí</span>
+                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Haz clic o arrastra audio</span>
                     </div>
                 </div>
                 
@@ -70,96 +76,84 @@
 
     <script>
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
+        let recognition;
+        let isRecording = false;
 
         window.onload = () => {
             renderList();
             setupDropZone();
         };
 
+        function toggleDictation() {
+            if (isRecording) {
+                recognition.stop();
+                return;
+            }
+
+            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            recognition.lang = 'es-ES';
+            recognition.continuous = true;
+            recognition.interimResults = true; 
+            recognition.maxAlternatives = 1;
+            
+            recognition.onstart = () => {
+                isRecording = true;
+                document.getElementById('micBtn').classList.add('recording-pulse');
+            };
+
+            recognition.onresult = (event) => {
+                let transcript = '';
+                for (let i = 0; i < event.results.length; ++i) {
+                    transcript += event.results[i][0].transcript;
+                }
+                document.getElementById('notes').value = transcript;
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                document.getElementById('micBtn').classList.remove('recording-pulse');
+            };
+
+            recognition.start();
+        }
+
         function setupDropZone() {
             const dropZone = document.getElementById('dropZone');
             const audioInput = document.getElementById('audioInput');
             const fileLabel = document.getElementById('fileLabel');
 
-            // Prevenir comportamientos por defecto del navegador
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, preventDefaults, false);
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+                dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
             });
 
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
-
-            // Efectos visuales al arrastrar
-            ['dragenter', 'dragover'].forEach(eventName => {
-                dropZone.addEventListener(eventName, () => {
-                    dropZone.classList.add('border-red-600', 'bg-zinc-800');
-                }, false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                dropZone.addEventListener(eventName, () => {
-                    dropZone.classList.remove('border-red-600', 'bg-zinc-800');
-                }, false);
-            });
-
-            // Manejar el soltado del archivo
             dropZone.addEventListener('drop', (e) => {
-                let dt = e.dataTransfer;
-                let files = dt.files;
-                
-                if (files.length > 0 && files[0].type.startsWith('audio/')) {
-                    audioInput.files = files; // Asignar el archivo arrastrado al input
+                if (e.dataTransfer.files.length > 0) {
+                    audioInput.files = e.dataTransfer.files;
                     updateFileLabel();
-                } else {
-                    fileLabel.textContent = "Error: Solo archivos de audio";
-                    fileLabel.classList.add('text-red-500');
-                    setTimeout(updateFileLabel, 2000);
                 }
-            }, false);
+            });
 
-            // Manejar selección normal por clic
             audioInput.addEventListener('change', updateFileLabel);
 
             function updateFileLabel() {
                 if (audioInput.files.length > 0) {
-                    fileLabel.textContent = "LISTO: " + audioInput.files[0].name;
+                    fileLabel.textContent = "CARGADO: " + audioInput.files[0].name.substring(0, 15) + "...";
                     fileLabel.className = "text-[10px] text-green-500 font-mono uppercase font-bold tracking-widest";
-                } else {
-                    fileLabel.textContent = "Haz clic o arrastra un audio aquí";
-                    fileLabel.className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
                 }
             }
         }
 
-        // Función de Dictado
-        function startDictation() {
-            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-            recognition.lang = 'es-ES';
-            recognition.onresult = (event) => {
-                document.getElementById('notes').value = event.results[0][0].transcript;
-            };
-            recognition.start();
-        }
-
         async function saveEvidence() {
-            const noteInput = document.getElementById('notes');
-            const phoneInput = document.getElementById('phoneInput');
+            const notes = document.getElementById('notes').value;
+            const phone = document.getElementById('phoneInput').value;
             const audioInput = document.getElementById('audioInput');
             
-            let audioData = null;
             if (audioInput.files.length > 0) {
-                // Convertimos el archivo a base64 para guardarlo (limitado por espacio)
-                const file = audioInput.files[0];
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                    audioData = e.target.result;
-                    finalizeSave(noteInput.value, phoneInput.value, audioData);
-                };
-                reader.readAsDataURL(file);
+                reader.onload = (e) => finalizeSave(notes, phone, e.target.result);
+                reader.readAsDataURL(audioInput.files[0]);
             } else {
-                finalizeSave(noteInput.value, phoneInput.value, null);
+                finalizeSave(notes, phone, null);
             }
         }
 
@@ -169,16 +163,11 @@
             evidences.unshift(entry);
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
             
-            // Limpiar todo después de guardar
             document.getElementById('notes').value = '';
             document.getElementById('phoneInput').value = '';
             document.getElementById('audioInput').value = '';
-            const fileLabel = document.getElementById('fileLabel');
-            if(fileLabel) {
-                fileLabel.textContent = "Haz clic o arrastra un audio aquí";
-                fileLabel.className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
-            }
-
+            document.getElementById('fileLabel').textContent = "Haz clic o arrastra audio";
+            document.getElementById('fileLabel').className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
             renderList();
         }
 
@@ -186,7 +175,7 @@
             const list = document.getElementById('evidenceList');
             list.innerHTML = evidences.map(e => `
                 <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" onchange="toggleSelection(${e.id})" class="accent-red-600 cursor-pointer">
+                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="accent-red-600 cursor-pointer">
                     <div class="flex-grow">
                         <span class="text-[9px] text-red-500 font-mono">${e.timestamp} | ${e.phone}</span>
                         <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
