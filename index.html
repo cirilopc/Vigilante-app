@@ -63,7 +63,7 @@
                     if (!db.objectStoreNames.contains('cases')) db.createObjectStore('cases', { keyPath: 'id' });
                 };
                 request.onsuccess = (e) => resolve(e.target.result);
-                request.onerror = (e) => reject(e.target.error);
+                request.onerror = (e) => reject("DB Error: " + e.target.error);
             });
         }
 
@@ -105,25 +105,24 @@
         async function saveEvidence() {
             const title = document.getElementById('caseTitle').value;
             const notes = document.getElementById('notes').value;
-            if(!title) return alert("Por favor, ingresa un título para el caso.");
+            if(!title) return console.error("Falta título");
             
             try {
                 const db = await openDB();
                 const tx = db.transaction('cases', 'readwrite');
-                const store = tx.objectStore('cases');
                 const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), title, notes, media: pendingFiles };
                 
-                const request = store.add(entry);
-                request.onsuccess = () => {
+                tx.objectStore('cases').add(entry);
+                tx.oncomplete = () => {
                     pendingFiles = []; 
                     document.getElementById('caseTitle').value = ''; 
                     document.getElementById('notes').value = ''; 
                     document.getElementById('previewList').innerHTML = '';
                     loadRecords();
                 };
-                request.onerror = (e) => console.error("Error al guardar:", e);
+                tx.onerror = (e) => console.error("Error al guardar:", e.target.error);
             } catch (err) {
-                console.error("Error en DB:", err);
+                console.error("Error crítico:", err);
             }
         }
 
@@ -139,8 +138,7 @@
                         <p class="text-sm text-zinc-300 my-2 italic">"${c.notes}"</p>
                         <div class="grid grid-cols-2 gap-2">
                             ${c.media.map(m => {
-                                const blob = dataURLtoBlob(m.data);
-                                const url = URL.createObjectURL(blob);
+                                const url = m.data; 
                                 if(m.type.startsWith('image/')) return `<img src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'image')">`;
                                 if(m.type.startsWith('audio/')) return `<audio controls class="w-full h-10"><source src="${url}" type="${m.type}"></audio>`;
                                 return `<video src="${url}" class="h-16 w-full object-cover rounded cursor-pointer" onclick="openModal('${url}', 'video')"></video>`;
@@ -150,13 +148,6 @@
                     </div>
                 `).join('');
             };
-        }
-
-        function dataURLtoBlob(dataurl) {
-            const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1];
-            const bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-            for(let i=0; i<n; i++) u8arr[i] = bstr.charCodeAt(i);
-            return new Blob([u8arr], {type:mime});
         }
 
         function openModal(url, type) {
