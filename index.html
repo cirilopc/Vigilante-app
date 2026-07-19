@@ -47,11 +47,14 @@
                     </div>
                 </div>
 
-                <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center hover:border-red-600 hover:bg-zinc-900 transition-all cursor-pointer">
-                    <input type="file" id="audioInput" accept="audio/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer">
+                    <input type="file" id="mediaInput" accept="audio/*,image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                     <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
                         <span class="text-2xl">📁</span>
-                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Haz clic o arrastra audio</span>
+                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Arrastra o haz clic (Foto, Audio, Video)</span>
+                        <div id="progressBar" class="w-full h-1 bg-zinc-800 rounded-full hidden overflow-hidden">
+                            <div id="progressFill" class="h-full bg-red-600 w-0 transition-all duration-300"></div>
+                        </div>
                     </div>
                 </div>
                 
@@ -76,125 +79,86 @@
 
     <script>
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
-        let recognition;
-        let isRecording = false;
-
-        window.onload = () => {
-            renderList();
-            setupDropZone();
-        };
-
+        
         function toggleDictation() {
-            if (isRecording) {
-                recognition.stop();
-                return;
-            }
-
-            recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'es-ES';
             recognition.continuous = true;
-            recognition.interimResults = true; 
-            recognition.maxAlternatives = 1;
+            recognition.interimResults = true;
             
-            recognition.onstart = () => {
-                isRecording = true;
-                document.getElementById('micBtn').classList.add('recording-pulse');
-            };
-
-            recognition.onresult = (event) => {
+            recognition.onstart = () => document.getElementById('micBtn').classList.add('recording-pulse');
+            recognition.onresult = (e) => {
                 let transcript = '';
-                for (let i = 0; i < event.results.length; ++i) {
-                    transcript += event.results[i][0].transcript;
-                }
+                for (let i = 0; i < e.results.length; ++i) transcript += e.results[i][0].transcript;
                 document.getElementById('notes').value = transcript;
             };
-
-            recognition.onend = () => {
-                isRecording = false;
-                document.getElementById('micBtn').classList.remove('recording-pulse');
-            };
-
+            recognition.onend = () => document.getElementById('micBtn').classList.remove('recording-pulse');
             recognition.start();
         }
 
-        function setupDropZone() {
-            const dropZone = document.getElementById('dropZone');
-            const audioInput = document.getElementById('audioInput');
-            const fileLabel = document.getElementById('fileLabel');
+        const dropZone = document.getElementById('dropZone');
+        const mediaInput = document.getElementById('mediaInput');
+        const progressFill = document.getElementById('progressFill');
+        const progressBar = document.getElementById('progressBar');
 
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-                dropZone.addEventListener(evt, (e) => { e.preventDefault(); e.stopPropagation(); });
-            });
+        mediaInput.addEventListener('change', handleFile);
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); mediaInput.files = e.dataTransfer.files; handleFile(); });
+        dropZone.addEventListener('dragover', (e) => e.preventDefault());
 
-            dropZone.addEventListener('drop', (e) => {
-                if (e.dataTransfer.files.length > 0) {
-                    audioInput.files = e.dataTransfer.files;
-                    updateFileLabel();
-                }
-            });
-
-            audioInput.addEventListener('change', updateFileLabel);
-
-            function updateFileLabel() {
-                if (audioInput.files.length > 0) {
-                    fileLabel.textContent = "CARGADO: " + audioInput.files[0].name.substring(0, 15) + "...";
-                    fileLabel.className = "text-[10px] text-green-500 font-mono uppercase font-bold tracking-widest";
-                }
+        function handleFile() {
+            if(mediaInput.files.length > 0) {
+                progressBar.classList.remove('hidden');
+                progressFill.style.width = '100%';
+                document.getElementById('fileLabel').textContent = "CARGADO: " + mediaInput.files[0].name.substring(0, 15);
             }
         }
 
         async function saveEvidence() {
             const notes = document.getElementById('notes').value;
             const phone = document.getElementById('phoneInput').value;
-            const audioInput = document.getElementById('audioInput');
+            const file = mediaInput.files[0];
             
-            if (audioInput.files.length > 0) {
+            if (file) {
                 const reader = new FileReader();
-                reader.onload = (e) => finalizeSave(notes, phone, e.target.result);
-                reader.readAsDataURL(audioInput.files[0]);
+                reader.onload = (e) => finalizeSave(notes, phone, e.target.result, file.type);
+                reader.readAsDataURL(file);
             } else {
-                finalizeSave(notes, phone, null);
+                finalizeSave(notes, phone, null, null);
             }
         }
 
-        function finalizeSave(notes, phone, audio) {
-            if(!notes) return;
-            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone: phone || "Sin número", notes, audio, selected: false };
+        function finalizeSave(notes, phone, media, type) {
+            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone, notes, media, type, selected: false };
             evidences.unshift(entry);
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
-            
+            renderList();
+            // Reset
             document.getElementById('notes').value = '';
             document.getElementById('phoneInput').value = '';
-            document.getElementById('audioInput').value = '';
-            document.getElementById('fileLabel').textContent = "Haz clic o arrastra audio";
-            document.getElementById('fileLabel').className = "text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest";
-            renderList();
+            mediaInput.value = '';
+            progressBar.classList.add('hidden');
+            progressFill.style.width = '0%';
+            document.getElementById('fileLabel').textContent = "Arrastra o haz clic (Foto, Audio, Video)";
         }
 
         function renderList() {
-            const list = document.getElementById('evidenceList');
-            list.innerHTML = evidences.map(e => `
-                <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="accent-red-600 cursor-pointer">
+            document.getElementById('evidenceList').innerHTML = evidences.map(e => `
+                <div class="flex items-start gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
+                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="mt-1 accent-red-600">
                     <div class="flex-grow">
-                        <span class="text-[9px] text-red-500 font-mono">${e.timestamp} | ${e.phone}</span>
-                        <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
-                        ${e.audio ? `<audio controls class="w-full mt-2 h-8"><source src="${e.audio}"></audio>` : ''}
+                        <span class="text-[9px] text-red-500">${e.timestamp} | ${e.phone}</span>
+                        <p class="text-sm my-1">${e.notes}</p>
+                        ${e.type?.startsWith('audio/') ? `<audio controls class="w-full h-8"><source src="${e.media}"></audio>` : ''}
+                        ${e.type?.startsWith('image/') ? `<img src="${e.media}" class="w-full rounded mt-1">` : ''}
+                        ${e.type?.startsWith('video/') ? `<video controls class="w-full rounded mt-1"><source src="${e.media}"></video>` : ''}
                     </div>
                 </div>
             `).join('');
         }
 
-        function toggleSelection(id) {
-            evidences = evidences.map(e => e.id === id ? {...e, selected: !e.selected} : e);
-            renderList();
-        }
-
-        function deleteSelected() {
-            evidences = evidences.filter(e => !e.selected);
-            localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
-            renderList();
-        }
+        function toggleSelection(id) { evidences = evidences.map(e => e.id === id ? {...e, selected: !e.selected} : e); renderList(); }
+        function deleteSelected() { evidences = evidences.filter(e => !e.selected); localStorage.setItem('evidences_vigilante', JSON.stringify(evidences)); renderList(); }
+        renderList();
     </script>
 </body>
 </html>
