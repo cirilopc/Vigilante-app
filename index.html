@@ -48,13 +48,10 @@
                 </div>
 
                 <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer">
-                    <input type="file" id="mediaInput" accept="audio/*,image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
+                    <input type="file" id="mediaInput" multiple accept="audio/*,image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
                     <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
                         <span class="text-2xl">📁</span>
-                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Arrastra o haz clic (Foto, Audio, Video)</span>
-                        <div id="progressBar" class="w-full h-1 bg-zinc-800 rounded-full hidden overflow-hidden">
-                            <div id="progressFill" class="h-full bg-red-600 w-0 transition-all duration-300"></div>
-                        </div>
+                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Arrastra o haz clic (Varios archivos permitidos)</span>
                     </div>
                 </div>
                 
@@ -79,66 +76,54 @@
 
     <script>
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
-        
+        let pendingFiles = [];
+
         function toggleDictation() {
             const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'es-ES';
             recognition.continuous = true;
             recognition.interimResults = true;
-            
             recognition.onstart = () => document.getElementById('micBtn').classList.add('recording-pulse');
             recognition.onresult = (e) => {
-                let transcript = '';
-                for (let i = 0; i < e.results.length; ++i) transcript += e.results[i][0].transcript;
+                let transcript = Array.from(e.results).map(r => r[0].transcript).join('');
                 document.getElementById('notes').value = transcript;
             };
             recognition.onend = () => document.getElementById('micBtn').classList.remove('recording-pulse');
             recognition.start();
         }
 
-        const dropZone = document.getElementById('dropZone');
         const mediaInput = document.getElementById('mediaInput');
-        const progressFill = document.getElementById('progressFill');
-        const progressBar = document.getElementById('progressBar');
-
-        mediaInput.addEventListener('change', handleFile);
-        dropZone.addEventListener('drop', (e) => { e.preventDefault(); mediaInput.files = e.dataTransfer.files; handleFile(); });
-        dropZone.addEventListener('dragover', (e) => e.preventDefault());
-
-        function handleFile() {
-            if(mediaInput.files.length > 0) {
-                progressBar.classList.remove('hidden');
-                progressFill.style.width = '100%';
-                document.getElementById('fileLabel').textContent = "CARGADO: " + mediaInput.files[0].name.substring(0, 15);
-            }
-        }
+        mediaInput.addEventListener('change', () => {
+            pendingFiles = Array.from(mediaInput.files);
+            document.getElementById('fileLabel').textContent = "Archivos listos: " + pendingFiles.length;
+        });
 
         async function saveEvidence() {
             const notes = document.getElementById('notes').value;
             const phone = document.getElementById('phoneInput').value;
-            const file = mediaInput.files[0];
-            
-            if (file) {
-                const reader = new FileReader();
-                reader.onload = (e) => finalizeSave(notes, phone, e.target.result, file.type);
-                reader.readAsDataURL(file);
-            } else {
-                finalizeSave(notes, phone, null, null);
-            }
-        }
+            const savedMedia = [];
 
-        function finalizeSave(notes, phone, media, type) {
-            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone, notes, media, type, selected: false };
+            for(let file of pendingFiles) {
+                savedMedia.push({
+                    data: await new Promise(resolve => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    }),
+                    type: file.type
+                });
+            }
+
+            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone, notes, mediaList: savedMedia, selected: false };
             evidences.unshift(entry);
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
             renderList();
+            
             // Reset
             document.getElementById('notes').value = '';
             document.getElementById('phoneInput').value = '';
-            mediaInput.value = '';
-            progressBar.classList.add('hidden');
-            progressFill.style.width = '0%';
-            document.getElementById('fileLabel').textContent = "Arrastra o haz clic (Foto, Audio, Video)";
+            pendingFiles = [];
+            document.getElementById('fileLabel').textContent = "Arrastra o haz clic (Varios archivos permitidos)";
         }
 
         function renderList() {
@@ -148,9 +133,13 @@
                     <div class="flex-grow">
                         <span class="text-[9px] text-red-500">${e.timestamp} | ${e.phone}</span>
                         <p class="text-sm my-1">${e.notes}</p>
-                        ${e.type?.startsWith('audio/') ? `<audio controls class="w-full h-8"><source src="${e.media}"></audio>` : ''}
-                        ${e.type?.startsWith('image/') ? `<img src="${e.media}" class="w-full rounded mt-1">` : ''}
-                        ${e.type?.startsWith('video/') ? `<video controls class="w-full rounded mt-1"><source src="${e.media}"></video>` : ''}
+                        <div class="grid grid-cols-2 gap-2 mt-2">
+                            ${e.mediaList.map(m => `
+                                ${m.type.startsWith('audio/') ? `<audio controls class="w-full h-8"><source src="${m.data}"></audio>` : ''}
+                                ${m.type.startsWith('image/') ? `<img src="${m.data}" class="w-full rounded">` : ''}
+                                ${m.type.startsWith('video/') ? `<video controls class="w-full rounded"><source src="${m.data}"></video>` : ''}
+                            `).join('')}
+                        </div>
                     </div>
                 </div>
             `).join('');
