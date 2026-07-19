@@ -5,7 +5,8 @@
     <title>Vigilante Pro</title>
     <style>
         body { font-family: sans-serif; background: #121212; color: #fff; padding: 20px; }
-        .drop-zone { border: 2px dashed #007bff; padding: 30px; text-align: center; cursor: pointer; }
+        .drop-zone { border: 2px dashed #007bff; padding: 30px; text-align: center; cursor: pointer; border-radius: 8px; }
+        .caso-item { background: #1e1e1e; padding: 10px; margin-top: 10px; border-radius: 5px; border-left: 4px solid #007bff; }
     </style>
 </head>
 <body>
@@ -14,18 +15,22 @@
     <div id="status" style="margin: 10px 0; color: yellow;"></div>
     <button id="saveBtn">Guardar Caso en Base de Datos</button>
 
+    <h2>Historial de Casos</h2>
+    <div id="lista-casos"></div>
+
     <script>
         let db;
         let pendingFiles = [];
 
-        // 1. Abrir DB correctamente
         const request = indexedDB.open("VigilanteProDB", 1);
         request.onupgradeneeded = (e) => {
             e.target.result.createObjectStore("casos", { keyPath: "id", autoIncrement: true });
         };
-        request.onsuccess = (e) => { db = e.target.result; };
+        request.onsuccess = (e) => { 
+            db = e.target.result; 
+            mostrarCasos(); // Cargar al iniciar
+        };
 
-        // 2. Procesar archivo
         document.getElementById('drop-zone').ondragover = (e) => e.preventDefault();
         document.getElementById('drop-zone').ondrop = (e) => {
             e.preventDefault();
@@ -38,22 +43,34 @@
             reader.readAsDataURL(file);
         };
 
-        // 3. Guardado seguro
         document.getElementById('saveBtn').onclick = () => {
-            if (!db) return alert("DB no lista aún.");
-            if (pendingFiles.length === 0) return alert("No hay archivos.");
-
+            if (!db) return;
             const tx = db.transaction("casos", "readwrite");
             const store = tx.objectStore("casos");
-            const req = store.add({ fecha: new Date().toLocaleString(), files: pendingFiles });
-            
-            req.onsuccess = () => {
-                alert("Guardado correctamente en IndexedDB");
+            store.add({ fecha: new Date().toLocaleString(), files: pendingFiles });
+            tx.oncomplete = () => {
+                alert("Guardado correctamente");
                 pendingFiles = [];
                 document.getElementById('status').innerText = "";
+                mostrarCasos(); // Refrescar lista
             };
-            req.onerror = (e) => alert("Error al guardar en disco: " + e.target.error);
         };
+
+        function mostrarCasos() {
+            const lista = document.getElementById('lista-casos');
+            lista.innerHTML = "";
+            const tx = db.transaction("casos", "readonly");
+            tx.objectStore("casos").openCursor().onsuccess = (e) => {
+                const cursor = e.target.result;
+                if (cursor) {
+                    const div = document.createElement('div');
+                    div.className = 'caso-item';
+                    div.innerHTML = `<strong>${cursor.value.fecha}</strong> - ${cursor.value.files.length} archivo(s)`;
+                    lista.appendChild(div);
+                    cursor.continue();
+                }
+            };
+        }
     </script>
 </body>
 </html>
