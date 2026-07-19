@@ -44,7 +44,7 @@
             </div>
             
             <div class="mt-8 pt-4 border-t border-zinc-800 text-center">
-                <p class="text-[9px] text-zinc-600 font-mono">APP DESARROLLADA POR MIKEPC4000</p>
+                <p class="text-[9px] text-zinc-600 font-mono">Powered by MikePC4000</p>
             </div>
         </div>
 
@@ -103,7 +103,7 @@
             }
             list.innerHTML = evidences.map(e => `
                 <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" ${e.selected ? 'checked' : ''} onchange="toggleSelection(${e.id})" class="accent-red-600">
+                    <input type="checkbox" ${e.selected ? 'checked' : ''} onchange="toggleSelection(${e.id})" class="accent-red-600 cursor-pointer">
                     <div class="flex-grow">
                         <div class="flex justify-between items-start">
                             <span class="text-[9px] text-red-500 font-mono">${e.timestamp}</span>
