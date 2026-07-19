@@ -4,70 +4,110 @@
     <meta charset="UTF-8">
     <title>Vigilante Pro</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; }
-        .drop-zone { border: 2px dashed #007bff; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; transition: 0.3s; }
-        .drop-zone:hover { background: #f0f8ff; }
-        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; }
-        .close-btn { position: absolute; top: 20px; right: 20px; color: white; font-size: 40px; cursor: pointer; }
+        body { font-family: sans-serif; padding: 20px; background: #121212; color: #fff; }
+        .drop-zone { border: 2px dashed #007bff; padding: 40px; text-align: center; cursor: pointer; margin-bottom: 20px; border-radius: 8px; background: #1e1e1e; }
+        .drop-zone:hover { background: #2a2a2a; }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; font-size: 16px; cursor: pointer; border-radius: 5px; }
+        button:hover { background: #0056b3; }
+        .caso-card { background: #1e1e1e; border: 1px solid #333; padding: 15px; margin-top: 10px; border-radius: 5px; }
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); align-items: center; justify-content: center; z-index: 1000; }
+        .close-btn { position: absolute; top: 20px; right: 20px; color: red; font-size: 40px; cursor: pointer; font-weight: bold; background: #fff; width: 50px; height: 50px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
     </style>
 </head>
 <body>
+
     <h1>👁️ Vigilante Pro</h1>
-    <div id="drop-zone" class="drop-zone">Arrastra fotos o vídeos aquí</div>
-    <div id="file-preview"></div>
+    <p>Documentando la verdad...</p>
+
+    <div id="drop-zone" class="drop-zone">Arrastra fotos o vídeos aquí o haz clic</div>
+    <div id="file-preview" style="margin-bottom: 15px; color: #00ffcc;"></div>
+    
     <button id="saveBtn">Guardar Caso</button>
 
-    <div id="modal"><span class="close-btn">&times;</span><div id="modal-content"></div></div>
+    <hr style="margin: 30px 0; border-color: #333;">
+
+    <h2>Casos Guardados</h2>
+    <div id="casos-container"></div>
+
+    <div id="modal">
+        <div class="close-btn">&times;</div>
+        <div id="modal-content"></div>
+    </div>
+
+    <footer style="margin-top: 50px; text-align: center; color: #777; font-size: 12px;">
+        Powered by Vigilante System
+    </footer>
 
     <script>
-        let db;
         let filesToSave = [];
-        const request = indexedDB.open("VigilanteDB", 1);
-
-        request.onupgradeneeded = (e) => {
-            db = e.target.result;
-            if (!db.objectStoreNames.contains('casos')) db.createObjectStore('casos', { keyPath: 'id', autoIncrement: true });
-        };
-
-        request.onsuccess = (e) => { db = e.target.result; };
 
         const dropZone = document.getElementById('drop-zone');
         dropZone.ondragover = (e) => e.preventDefault();
         dropZone.ondrop = (e) => {
             e.preventDefault();
-            const files = e.dataTransfer.files;
+            procesarArchivos(e.dataTransfer.files);
+        };
+
+        function procesarArchivos(files) {
             for (let file of files) {
                 const reader = new FileReader();
                 reader.onload = (event) => {
                     filesToSave.push({ name: file.name, data: event.target.result, type: file.type });
-                    alert("Archivo añadido: " + file.name);
+                    document.getElementById('file-preview').innerText = `Archivos listos para guardar: ${filesToSave.length}`;
                 };
                 reader.readAsDataURL(file);
             }
-        };
+        }
 
         document.getElementById('saveBtn').onclick = () => {
-            if (!db) return alert("Base de datos no inicializada.");
-            const transaction = db.transaction(['casos'], 'readwrite');
-            const store = transaction.objectStore('casos');
-            const caso = { fecha: new Date().toLocaleString(), archivos: filesToSave };
-            
-            const req = store.add(caso);
-            req.onsuccess = () => {
-                alert("Guardado con éxito");
+            if (filesToSave.length === 0) {
+                alert("Por favor, añade al menos un archivo.");
+                return;
+            }
+
+            try {
+                const casos = JSON.parse(localStorage.getItem('vigilante_casos') || '[]');
+                const nuevoCaso = {
+                    id: Date.now(),
+                    fecha: new Date().toLocaleString(),
+                    archivos: filesToSave
+                };
+
+                casos.push(nuevoCaso);
+                localStorage.setItem('vigilante_casos', JSON.stringify(casos));
+
+                alert("¡Caso guardado con éxito!");
                 filesToSave = [];
-            };
-            req.onerror = (e) => alert("Error al guardar: " + e.target.error);
+                document.getElementById('file-preview').innerText = "";
+                cargarCasos();
+            } catch (err) {
+                alert("Error al guardar (posible límite de espacio superado): " + err.message);
+            }
         };
+
+        function cargarCasos() {
+            const container = document.getElementById('casos-container');
+            container.innerHTML = "";
+            const casos = JSON.parse(localStorage.getItem('vigilante_casos') || '[]');
+
+            casos.forEach(caso => {
+                const div = document.createElement('div');
+                div.className = 'caso-card';
+                div.innerHTML = `<strong>Fecha: ${caso.fecha}</strong><br>Archivos: ${caso.archivos.length}`;
+                container.appendChild(div);
+            });
+        }
 
         document.querySelector('.close-btn').onclick = () => {
             document.getElementById('modal').style.display = 'none';
-            // Detener multimedia
             document.querySelectorAll('video, audio').forEach(media => {
                 media.pause();
                 media.currentTime = 0;
             });
         };
+
+        // Cargar al iniciar
+        cargarCasos();
     </script>
 </body>
 </html>
