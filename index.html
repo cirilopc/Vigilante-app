@@ -24,8 +24,13 @@
                     <span class="text-3xl">👁️</span>
                 </div>
             </div>
-            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">VIGILANTE <span class="text-white">PRO</span></h1>
-            <p class="text-[10px] text-zinc-500 font-mono uppercase italic mb-6 tracking-widest text-center">Documentando la verdad, restaurando tu paz.</p>
+
+            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">
+                VIGILANTE <span class="text-white">PRO</span>
+            </h1>
+            <p class="text-[10px] text-zinc-500 font-mono uppercase italic mb-6 tracking-widest text-center">
+                Documentando la verdad, restaurando tu paz.
+            </p>
             
             <div class="space-y-4">
                 <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600">
@@ -38,17 +43,18 @@
                     </div>
                 </div>
 
-                <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer">
-                    <input type="file" id="mediaInput" multiple accept="audio/*,image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                    <div class="flex flex-col items-center justify-center pointer-events-none">
-                        <span class="text-2xl">📁</span>
-                        <span id="fileLabel" class="text-[9px] text-zinc-400 font-mono uppercase font-bold mt-2">Arrastra o clic para añadir archivos</span>
+                <!-- Zona de carga mejorada -->
+                <div id="dropZone" class="border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer hover:border-red-600 transition-all">
+                    <input type="file" id="mediaInput" accept="audio/*,image/*,video/*" class="hidden">
+                    <div onclick="document.getElementById('mediaInput').click()" class="pointer-events-none">
+                        <span class="text-xl">➕</span>
+                        <p class="text-[9px] text-zinc-400 font-mono uppercase mt-2">Añadir archivo a la cola</p>
                     </div>
                 </div>
-                
-                <!-- Lista de vista previa -->
-                <div id="previewList" class="grid grid-cols-3 gap-2 mt-2"></div>
 
+                <!-- Lista de espera -->
+                <div id="queueList" class="grid grid-cols-2 gap-2 text-[10px]"></div>
+                
                 <button onclick="saveEvidence()" class="w-full btn-panic text-white py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all">
                     GUARDAR EVIDENCIA
                 </button>
@@ -60,10 +66,7 @@
         </div>
 
         <div class="glass rounded-3xl p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Registros</h2>
-                <button onclick="deleteSelected()" class="text-[9px] text-red-500 underline uppercase">Borrar Seleccionados</button>
-            </div>
+            <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4">Registros Guardados</h2>
             <div id="evidenceList" class="space-y-3 max-h-80 overflow-y-auto"></div>
         </div>
     </main>
@@ -72,6 +75,7 @@
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
         let filesQueue = [];
 
+        // Dictado
         function toggleDictation() {
             const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'es-ES';
@@ -79,18 +83,20 @@
             recognition.start();
         }
 
-        const mediaInput = document.getElementById('mediaInput');
-        const previewList = document.getElementById('previewList');
-
-        mediaInput.addEventListener('change', () => {
-            filesQueue = Array.from(mediaInput.files);
-            renderPreviews();
+        // Manejo de archivos en cola
+        document.getElementById('mediaInput').addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                filesQueue.push(e.target.files[0]);
+                renderQueue();
+            }
         });
 
-        function renderPreviews() {
-            previewList.innerHTML = filesQueue.map((f, i) => `
-                <div class="relative bg-zinc-800 p-1 rounded text-[8px] truncate">
-                    ${f.type.startsWith('image/') ? `<img src="${URL.createObjectURL(f)}" class="h-10 w-full object-cover">` : '📁 ' + f.name.substring(0, 8)}
+        function renderQueue() {
+            const list = document.getElementById('queueList');
+            list.innerHTML = filesQueue.map((f, i) => `
+                <div class="bg-zinc-800 p-2 rounded flex justify-between items-center">
+                    <span class="truncate">${f.name.substring(0,10)}</span>
+                    <button onclick="filesQueue.splice(${i},1); renderQueue()" class="text-red-500">✕</button>
                 </div>
             `).join('');
         }
@@ -98,35 +104,35 @@
         async function saveEvidence() {
             const mediaList = [];
             for (let f of filesQueue) {
-                mediaList.push({ data: await new Promise(res => {
+                const data = await new Promise(res => {
                     const reader = new FileReader();
                     reader.onload = e => res(e.target.result);
                     reader.readAsDataURL(f);
-                }), type: f.type });
+                });
+                mediaList.push({ data, type: f.type, name: f.name });
             }
 
-            evidences.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), phone: document.getElementById('phoneInput').value, notes: document.getElementById('notes').value, mediaList, selected: false });
+            evidences.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), phone: document.getElementById('phoneInput').value, notes: document.getElementById('notes').value, mediaList });
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
+            
+            // Reset
             filesQueue = [];
-            previewList.innerHTML = '';
+            document.getElementById('queueList').innerHTML = '';
+            document.getElementById('notes').value = '';
             renderList();
         }
 
         function renderList() {
             document.getElementById('evidenceList').innerHTML = evidences.map(e => `
-                <div class="p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="mr-2">
-                    <span class="text-[9px] text-red-500">${e.timestamp}</span>
+                <div class="p-3 bg-zinc-900 border-l-4 border-red-600 rounded-r-lg">
+                    <span class="text-[9px] text-zinc-500">${e.timestamp}</span>
                     <p class="text-sm mt-1">${e.notes}</p>
-                    <div class="grid grid-cols-3 gap-1 mt-2">
-                        ${e.mediaList.map(m => m.type.startsWith('image/') ? `<img src="${m.data}" class="h-12 w-full object-cover rounded">` : `<div class="bg-zinc-800 p-2 rounded text-[8px]">${m.type.split('/')[0]}</div>`).join('')}
+                    <div class="grid grid-cols-2 gap-2 mt-2">
+                        ${e.mediaList.map(m => m.type.startsWith('image/') ? `<img src="${m.data}" class="h-16 w-full object-cover rounded">` : `<div class="bg-zinc-800 p-2 text-[8px] truncate">${m.name}</div>`).join('')}
                     </div>
                 </div>
             `).join('');
         }
-
-        function toggleSelection(id) { evidences = evidences.map(e => e.id === id ? {...e, selected: !e.selected} : e); renderList(); }
-        function deleteSelected() { evidences = evidences.filter(e => !e.selected); localStorage.setItem('evidences_vigilante', JSON.stringify(evidences)); renderList(); }
         renderList();
     </script>
 </body>
