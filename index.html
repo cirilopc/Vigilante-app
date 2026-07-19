@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VIGILANTE PRO | Documentando la Verdad</title>
-    <meta name="theme-color" content="#7f1d1d">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&family=JetBrains+Mono&display=swap');
@@ -17,7 +16,6 @@
 
     <main class="max-w-md mx-auto space-y-6">
         <div class="glass rounded-3xl p-6 shadow-2xl border-t border-red-900">
-            <!-- Logo Restaurado -->
             <div class="flex justify-center mb-4">
                 <div class="w-16 h-16 bg-red-900/30 rounded-full flex items-center justify-center border-2 border-red-600 shadow-[0_0_15px_rgba(220,38,38,0.5)]">
                     <span class="text-3xl">👁️</span>
@@ -51,7 +49,10 @@
         </div>
 
         <div class="glass rounded-3xl p-6">
-            <h2 class="text-[10px] font-bold text-zinc-500 mb-4 uppercase tracking-widest">Registros Guardados</h2>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Registros</h2>
+                <button onclick="deleteSelected()" class="text-[9px] text-red-500 hover:text-red-400 font-mono uppercase underline">Borrar Seleccionados</button>
+            </div>
             <div id="evidenceList" class="space-y-3 max-h-80 overflow-y-auto"></div>
         </div>
     </main>
@@ -64,13 +65,14 @@
         function saveEvidence() {
             const noteInput = document.getElementById('notes');
             const phoneInput = document.getElementById('phoneInput');
-            if(!noteInput.value) { return; }
+            if(!noteInput.value) return;
             
             const entry = {
                 id: Date.now(),
                 timestamp: new Date().toLocaleString(),
                 phone: phoneInput.value || "Sin número",
-                notes: noteInput.value
+                notes: noteInput.value,
+                selected: false
             };
             
             evidences.unshift(entry);
@@ -80,15 +82,35 @@
             renderList();
         }
 
+        function toggleSelection(id) {
+            evidences = evidences.map(e => e.id === id ? {...e, selected: !e.selected} : e);
+            renderList();
+        }
+
+        function deleteSelected() {
+            if(confirm('¿Eliminar los registros seleccionados?')) {
+                evidences = evidences.filter(e => !e.selected);
+                localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
+                renderList();
+            }
+        }
+
         function renderList() {
             const list = document.getElementById('evidenceList');
+            if (evidences.length === 0) {
+                list.innerHTML = '<p class="text-center text-zinc-600 text-xs py-4">No hay registros.</p>';
+                return;
+            }
             list.innerHTML = evidences.map(e => `
-                <div class="p-4 bg-zinc-900 border-l-4 border-red-600 rounded-r-lg animate-in fade-in slide-in-from-left-4 duration-300">
-                    <div class="flex justify-between items-start">
-                        <span class="text-[9px] text-red-500 font-mono">${e.timestamp}</span>
-                        <span class="text-[9px] font-bold text-zinc-400">${e.phone}</span>
+                <div class="flex items-center gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
+                    <input type="checkbox" ${e.selected ? 'checked' : ''} onchange="toggleSelection(${e.id})" class="accent-red-600">
+                    <div class="flex-grow">
+                        <div class="flex justify-between items-start">
+                            <span class="text-[9px] text-red-500 font-mono">${e.timestamp}</span>
+                            <span class="text-[9px] font-bold text-zinc-400">${e.phone}</span>
+                        </div>
+                        <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
                     </div>
-                    <p class="text-sm mt-1 text-zinc-300">${e.notes}</p>
                 </div>
             `).join('');
         }
