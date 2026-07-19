@@ -24,51 +24,45 @@
                     <span class="text-3xl">👁️</span>
                 </div>
             </div>
-
-            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">
-                VIGILANTE <span class="text-white">PRO</span>
-            </h1>
-            <p class="text-[10px] text-zinc-500 font-mono uppercase italic mb-6 tracking-widest text-center">
-                Documentando la verdad, restaurando tu paz.
-            </p>
+            <h1 class="text-2xl font-black uppercase tracking-tighter text-red-500 text-center">VIGILANTE <span class="text-white">PRO</span></h1>
+            <p class="text-[10px] text-zinc-500 font-mono uppercase italic mb-6 tracking-widest text-center">Documentando la verdad, restaurando tu paz.</p>
             
             <div class="space-y-4">
-                <a href="tel:" id="quickCall" class="block w-full bg-zinc-800 hover:bg-zinc-700 text-center py-4 rounded-xl font-bold transition-all border border-zinc-700 active:scale-95">
-                    📞 LLAMAR O MARCAR
-                </a>
-                
-                <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600">
+                <input type="text" id="phoneInput" placeholder="Número sospechoso" class="w-full p-4 bg-black border border-zinc-800 rounded-xl text-white outline-none focus:border-red-600">
                 
                 <div class="relative">
-                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition-all" placeholder="¿Qué ocurrió? ..."></textarea>
+                    <textarea id="notes" class="w-full p-4 bg-black border border-zinc-800 rounded-xl h-24 text-white placeholder-zinc-600 outline-none focus:border-red-600" placeholder="¿Qué ocurrió? ..."></textarea>
                     <div class="absolute top-2 right-2 flex gap-2">
-                        <button id="clearBtn" onclick="document.getElementById('notes').value=''" class="p-2 bg-zinc-800 rounded-full hover:bg-zinc-600 transition-all text-xs">🗑️</button>
+                        <button onclick="document.getElementById('notes').value=''" class="p-2 bg-zinc-800 rounded-full hover:bg-zinc-600 transition-all text-xs">🗑️</button>
                         <button id="micBtn" onclick="toggleDictation()" class="p-2 bg-zinc-800 rounded-full hover:bg-red-900 transition-all text-sm">🎙️</button>
                     </div>
                 </div>
 
                 <div id="dropZone" class="relative border-2 border-dashed border-zinc-700 bg-black rounded-xl p-4 text-center cursor-pointer">
                     <input type="file" id="mediaInput" multiple accept="audio/*,image/*,video/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10">
-                    <div class="flex flex-col items-center justify-center space-y-2 pointer-events-none">
+                    <div class="flex flex-col items-center justify-center pointer-events-none">
                         <span class="text-2xl">📁</span>
-                        <span id="fileLabel" class="text-[10px] text-zinc-400 font-mono uppercase font-bold tracking-widest">Arrastra o haz clic (Varios archivos permitidos)</span>
+                        <span id="fileLabel" class="text-[9px] text-zinc-400 font-mono uppercase font-bold mt-2">Arrastra o clic para añadir archivos</span>
                     </div>
                 </div>
                 
-                <button onclick="saveEvidence()" class="w-full btn-panic text-white py-5 rounded-2xl font-black uppercase tracking-widest text-lg shadow-xl active:scale-95 transition-all hover:bg-red-800">
+                <!-- Lista de vista previa -->
+                <div id="previewList" class="grid grid-cols-3 gap-2 mt-2"></div>
+
+                <button onclick="saveEvidence()" class="w-full btn-panic text-white py-4 rounded-xl font-black uppercase tracking-widest active:scale-95 transition-all">
                     GUARDAR EVIDENCIA
                 </button>
             </div>
             
-            <div class="mt-8 pt-4 border-t border-zinc-800 text-center">
-                <p class="text-[9px] text-zinc-600 font-mono">Powered by MikePC4000</p>
+            <div class="mt-8 pt-4 border-t border-zinc-800 text-center text-[9px] text-zinc-600 font-mono">
+                Powered by MikePC4000
             </div>
         </div>
 
         <div class="glass rounded-3xl p-6">
             <div class="flex justify-between items-center mb-4">
                 <h2 class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Registros</h2>
-                <button onclick="deleteSelected()" class="text-[9px] text-red-500 hover:text-red-400 font-mono uppercase underline">Borrar Seleccionados</button>
+                <button onclick="deleteSelected()" class="text-[9px] text-red-500 underline uppercase">Borrar Seleccionados</button>
             </div>
             <div id="evidenceList" class="space-y-3 max-h-80 overflow-y-auto"></div>
         </div>
@@ -76,70 +70,56 @@
 
     <script>
         let evidences = JSON.parse(localStorage.getItem('evidences_vigilante')) || [];
-        let pendingFiles = [];
+        let filesQueue = [];
 
         function toggleDictation() {
             const recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
             recognition.lang = 'es-ES';
-            recognition.continuous = true;
-            recognition.interimResults = true;
-            recognition.onstart = () => document.getElementById('micBtn').classList.add('recording-pulse');
-            recognition.onresult = (e) => {
-                let transcript = Array.from(e.results).map(r => r[0].transcript).join('');
-                document.getElementById('notes').value = transcript;
-            };
-            recognition.onend = () => document.getElementById('micBtn').classList.remove('recording-pulse');
+            recognition.onresult = (e) => document.getElementById('notes').value = Array.from(e.results).map(r => r[0].transcript).join('');
             recognition.start();
         }
 
         const mediaInput = document.getElementById('mediaInput');
+        const previewList = document.getElementById('previewList');
+
         mediaInput.addEventListener('change', () => {
-            pendingFiles = Array.from(mediaInput.files);
-            document.getElementById('fileLabel').textContent = "Archivos listos: " + pendingFiles.length;
+            filesQueue = Array.from(mediaInput.files);
+            renderPreviews();
         });
 
-        async function saveEvidence() {
-            const notes = document.getElementById('notes').value;
-            const phone = document.getElementById('phoneInput').value;
-            const savedMedia = [];
+        function renderPreviews() {
+            previewList.innerHTML = filesQueue.map((f, i) => `
+                <div class="relative bg-zinc-800 p-1 rounded text-[8px] truncate">
+                    ${f.type.startsWith('image/') ? `<img src="${URL.createObjectURL(f)}" class="h-10 w-full object-cover">` : '📁 ' + f.name.substring(0, 8)}
+                </div>
+            `).join('');
+        }
 
-            for(let file of pendingFiles) {
-                savedMedia.push({
-                    data: await new Promise(resolve => {
-                        const reader = new FileReader();
-                        reader.onload = e => resolve(e.target.result);
-                        reader.readAsDataURL(file);
-                    }),
-                    type: file.type
-                });
+        async function saveEvidence() {
+            const mediaList = [];
+            for (let f of filesQueue) {
+                mediaList.push({ data: await new Promise(res => {
+                    const reader = new FileReader();
+                    reader.onload = e => res(e.target.result);
+                    reader.readAsDataURL(f);
+                }), type: f.type });
             }
 
-            const entry = { id: Date.now(), timestamp: new Date().toLocaleString(), phone, notes, mediaList: savedMedia, selected: false };
-            evidences.unshift(entry);
+            evidences.unshift({ id: Date.now(), timestamp: new Date().toLocaleString(), phone: document.getElementById('phoneInput').value, notes: document.getElementById('notes').value, mediaList, selected: false });
             localStorage.setItem('evidences_vigilante', JSON.stringify(evidences));
+            filesQueue = [];
+            previewList.innerHTML = '';
             renderList();
-            
-            // Reset
-            document.getElementById('notes').value = '';
-            document.getElementById('phoneInput').value = '';
-            pendingFiles = [];
-            document.getElementById('fileLabel').textContent = "Arrastra o haz clic (Varios archivos permitidos)";
         }
 
         function renderList() {
             document.getElementById('evidenceList').innerHTML = evidences.map(e => `
-                <div class="flex items-start gap-3 p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
-                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="mt-1 accent-red-600">
-                    <div class="flex-grow">
-                        <span class="text-[9px] text-red-500">${e.timestamp} | ${e.phone}</span>
-                        <p class="text-sm my-1">${e.notes}</p>
-                        <div class="grid grid-cols-2 gap-2 mt-2">
-                            ${e.mediaList.map(m => `
-                                ${m.type.startsWith('audio/') ? `<audio controls class="w-full h-8"><source src="${m.data}"></audio>` : ''}
-                                ${m.type.startsWith('image/') ? `<img src="${m.data}" class="w-full rounded">` : ''}
-                                ${m.type.startsWith('video/') ? `<video controls class="w-full rounded"><source src="${m.data}"></video>` : ''}
-                            `).join('')}
-                        </div>
+                <div class="p-3 bg-zinc-900 border-l-4 ${e.selected ? 'border-yellow-600' : 'border-red-600'} rounded-r-lg">
+                    <input type="checkbox" onchange="toggleSelection(${e.id})" ${e.selected ? 'checked' : ''} class="mr-2">
+                    <span class="text-[9px] text-red-500">${e.timestamp}</span>
+                    <p class="text-sm mt-1">${e.notes}</p>
+                    <div class="grid grid-cols-3 gap-1 mt-2">
+                        ${e.mediaList.map(m => m.type.startsWith('image/') ? `<img src="${m.data}" class="h-12 w-full object-cover rounded">` : `<div class="bg-zinc-800 p-2 rounded text-[8px]">${m.type.split('/')[0]}</div>`).join('')}
                     </div>
                 </div>
             `).join('');
